@@ -52,7 +52,7 @@ namespace DergesaReports
             fromDate.Value = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
             filters.Controls.Add(toDate);
             filters.Controls.Add(new Label { Text = "Artikulli:", AutoSize = true, Location = new Point(445, 28) });
-            articleCombo = new ComboBox { Location = new Point(500, 24), Width = 360, DropDownStyle = ComboBoxStyle.DropDownList, DisplayMember = "Display", ValueMember = "Idart" };
+            articleCombo = new ComboBox { Location = new Point(500, 24), Width = 360, DropDownStyle = ComboBoxStyle.DropDown, DisplayMember = "Artikulli", ValueMember = "Idart", AutoCompleteMode = AutoCompleteMode.SuggestAppend, AutoCompleteSource = AutoCompleteSource.ListItems, MaxDropDownItems = 18 };
             filters.Controls.Add(articleCombo);
             filters.Controls.Add(new Label { Text = "Raporti:", AutoSize = true, Location = new Point(15, 65) });
             reportCombo = new ComboBox { Location = new Point(85, 61), Width = 340, DropDownStyle = ComboBoxStyle.DropDownList };
@@ -96,11 +96,10 @@ namespace DergesaReports
             try
             {
                 using (var cn = OpenConnection())
-                using (var da = new OleDbDataAdapter("SELECT Idart, Kodi, Artikulli FROM Artikujt ORDER BY Artikulli", cn))
+                using (var da = new OleDbDataAdapter("SELECT Idart, Artikulli FROM Artikujt ORDER BY Artikulli", cn))
                 {
                     var dt = new DataTable(); da.Fill(dt);
-                    var all = dt.NewRow(); all["Idart"] = 0; all["Kodi"] = ""; all["Artikulli"] = "(Të gjithë artikujt)"; dt.Rows.InsertAt(all, 0);
-                    dt.Columns.Add("Display", typeof(string), "IIF(Kodi = '', Artikulli, Kodi + ' - ' + Artikulli)");
+                    var all = dt.NewRow(); all["Idart"] = 0; all["Artikulli"] = "(Të gjithë artikujt)"; dt.Rows.InsertAt(all, 0);
                     articleCombo.DataSource = dt;
                     articleCombo.SelectedIndex = 0;
                     status.Text = "Lidhja u krye. U ngarkuan " + (dt.Rows.Count - 1) + " artikuj.";
@@ -116,7 +115,15 @@ namespace DergesaReports
             {
                 DataTable dt;
                 int report = reportCombo.SelectedIndex;
-                int id = articleCombo.SelectedValue == null ? 0 : Convert.ToInt32(articleCombo.SelectedValue);
+                int id = 0;
+                if (articleCombo.SelectedValue != null && articleCombo.SelectedValue != DBNull.Value)
+                {
+                    int.TryParse(Convert.ToString(articleCombo.SelectedValue), out id);
+                }
+                else if (!String.IsNullOrWhiteSpace(articleCombo.Text) && articleCombo.Text != "(Të gjithë artikujt)")
+                {
+                    MessageBox.Show("Zgjidh një artikull nga lista e emërtimeve.", "Artikulli"); return;
+                }
                 using (var cn = OpenConnection())
                 {
                     cn.Open();
@@ -150,20 +157,26 @@ namespace DergesaReports
         {
             string sql = @"
 SELECT A.Idart, A.Kodi, A.Artikulli,
- Nz((SELECT Sum(L.SasiHyrje) FROM FaturehyrjeArtikujt AS L
+ (SELECT Sum(L.SasiHyrje) FROM FaturehyrjeArtikujt AS L
  INNER JOIN Faturehyrje AS F ON L.idfaturehyrje=F.Idfaturehyrje
- WHERE L.idart=A.Idart AND F.Datafatures>=? AND F.Datafatures<? AND Nz(F.Anulluar,False)=False),0) AS Hyrje,
- Nz((SELECT Sum(L.SasiShitje) FROM FatureshitjeArtikujt AS L
+ WHERE L.idart=A.Idart AND F.Datafatures>=? AND F.Datafatures<? AND (F.Anulluar=False OR F.Anulluar Is Null)) AS Hyrje,
+ (SELECT Sum(L.SasiShitje) FROM FatureshitjeArtikujt AS L
  INNER JOIN FatureShitje AS F ON L.idfatureshitje=F.IdfatureShitje
- WHERE L.idart=A.Idart AND F.Datafatures>=? AND F.Datafatures<? AND Nz(F.Anulluar,False)=False),0) AS Dalje
+ WHERE L.idart=A.Idart AND F.Datafatures>=? AND F.Datafatures<? AND (F.Anulluar=False OR F.Anulluar Is Null)) AS Dalje
  FROM Artikujt AS A WHERE (?=0 OR A.Idart=?) ORDER BY A.Artikulli";
-            return Query(cn, sql,
+            DataTable result = Query(cn, sql,
                 new OleDbParameter { OleDbType = OleDbType.Date, Value = fromDate.Value.Date },
                 new OleDbParameter { OleDbType = OleDbType.Date, Value = toDate.Value.Date.AddDays(1) },
                 new OleDbParameter { OleDbType = OleDbType.Date, Value = fromDate.Value.Date },
                 new OleDbParameter { OleDbType = OleDbType.Date, Value = toDate.Value.Date.AddDays(1) },
                 new OleDbParameter { OleDbType = OleDbType.Integer, Value = id },
                 new OleDbParameter { OleDbType = OleDbType.Integer, Value = id });
+            foreach (DataRow row in result.Rows)
+            {
+                if (row.IsNull("Hyrje")) row["Hyrje"] = 0;
+                if (row.IsNull("Dalje")) row["Dalje"] = 0;
+            }
+            return result;
         }
 
         private DataTable GetStock(OleDbConnection cn, int id)
@@ -178,11 +191,11 @@ SELECT A.Idart, A.Kodi, A.Artikulli,
 SELECT * FROM (
  SELECT F.Datafatures AS DataLev, F.nrfature AS Dokument, L.idart, L.EmertimArtikulli AS Artikulli, L.SasiHyrje AS Hyrje, 0 AS Dalje
  FROM FaturehyrjeArtikujt AS L INNER JOIN Faturehyrje AS F ON L.idfaturehyrje=F.Idfaturehyrje
- WHERE L.idart=? AND F.Datafatures>=? AND F.Datafatures<? AND Nz(F.Anulluar,False)=False
+ WHERE L.idart=? AND F.Datafatures>=? AND F.Datafatures<? AND (F.Anulluar=False OR F.Anulluar Is Null)
  UNION ALL
  SELECT F.Datafatures AS DataLev, F.nrfature AS Dokument, L.idart, L.EmertimArtikulli AS Artikulli, 0 AS Hyrje, L.SasiShitje AS Dalje
  FROM FatureshitjeArtikujt AS L INNER JOIN FatureShitje AS F ON L.idfatureshitje=F.IdfatureShitje
- WHERE L.idart=? AND F.Datafatures>=? AND F.Datafatures<? AND Nz(F.Anulluar,False)=False
+ WHERE L.idart=? AND F.Datafatures>=? AND F.Datafatures<? AND (F.Anulluar=False OR F.Anulluar Is Null)
 ) AS M ORDER BY DataLev, Dokument";
             return Query(cn, sql,
                 new OleDbParameter { OleDbType = OleDbType.Integer, Value = id },

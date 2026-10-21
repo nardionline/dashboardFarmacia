@@ -1,35 +1,33 @@
 # Dergesa Reports
 
-Windows Forms application for the existing Access database `dergesa.mdb`.
+Aplikacion Windows Forms për raporte magazine nga databaza ekzistuese Microsoft Access 2003 (`.mdb`). Nuk ndryshon strukturën e tabelave.
 
-## Reports
-- Hyrje dhe dalje sipas artikullit, filtered by date range.
-- Gjendja aktuale using `Artikujt.Gjendjemalli`.
-- Kartela e artikullit for a selected article and date range.
-- CSV export for opening in Excel.
+## Raportet
+- Hyrje dhe dalje sipas artikullit, me filtër datash.
+- Gjendja aktuale nga `Artikujt.Gjendjemalli`.
+- Kartela e lëvizjeve për një artikull të zgjedhur, me filtër datash.
+- Eksport i rezultatit në CSV për Excel.
 
-## Database connection
-The application asks for an `.mdb` or `.accdb` file. Default path is `dergesa.mdb` next to the EXE.
+## Kërkimi i artikullit
+Lista dhe plotësimi automatik kërkojnë vetëm sipas emërtimit `Artikulli`; Kodi dhe Barcode nuk përdoren si fusha kërkimi.
+
+## Databaza
+Aplikacioni lejon zgjedhjen e skedarit `.mdb` ose `.accdb` nga butoni **Zgjidh MDB...**. Parazgjedhja është `dergesa.mdb` në të njëjtën dosje me EXE-në.
 
 Connection string:
 `Provider=Microsoft.ACE.OLEDB.12.0;Data Source=<database path>;Persist Security Info=False;`
 
-The application is compiled as **x86** to work with the 32-bit Access Database Engine. Install a compatible Microsoft Access Database Engine / ACE OLEDB provider if the connection fails. Do not include the production database in this repository.
+Build është **x86**. Në kompjuter duhet të jetë instaluar ACE OLEDB 32-bit. Kërkesat SQL shmangin `Nz()` dhe janë përshtatur për fushat e databazës Access të projektit.
 
-## Build using GitHub Actions
-1. Create an empty GitHub repository.
-2. Upload all files in this project, preserving folders.
-3. Commit to `main` (or `master`).
-4. Open **Actions** and wait for **Build Dergesa Reports EXE** to complete.
-5. Open the completed workflow run and download artifact `DergesaReports-Windows-x86`.
-6. Extract the ZIP and run `DergesaReports.exe` on a Windows PC with the compatible ACE provider installed.
+## Ndërtimi përmes GitHub Actions
+1. Ngarko të gjitha skedarët e këtij ZIP-i në root të repository-t.
+2. Bëj commit/push në `main` ose `master`.
+3. Hape skedën **Actions** dhe prit workflow `Build Dergesa Reports EXE`.
+4. Shkarko artifact `DergesaReports-Windows-x86` nga run-i i përfunduar.
+5. Ekstrakto ZIP-in dhe ekzekuto `DergesaReports.exe`.
 
-## Local build
-Open `DergesaReports.sln` in Visual Studio on Windows and build `Release | x86`, or use MSBuild:
-`msbuild DergesaReports.sln /p:Configuration=Release /p:Platform=x86`
-
-## Notes
-- The app reads existing tables and does not create or alter database tables.
-- The date filters are inclusive: the selected end date includes the whole day.
-- The app excludes invoices marked `Anulluar=True`.
-- Confirm stock field meaning against your workflow before relying on it for inventory accounting.
+## Shënime
+- Filtri i datave përfshin të gjithë ditën e fundit të zgjedhur.
+- Faturat e anuluara përjashtohen (`Anulluar=True`).
+- Raporti i gjendjes lexon gjendjen aktuale të ruajtur në `Artikujt.Gjendjemalli`; nuk llogarit gjendjen historike në një datë të kaluar.
+- Projekti duhet testuar kundrejt kopjes së databazës reale pas build-it.
